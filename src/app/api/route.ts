@@ -1,11 +1,34 @@
 import Groq from "groq-sdk";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 const grok = new Groq();
 
+const chatCompletionSchema = z.object({
+  role: z.string(),
+  content: z.string(),
+});
+
+const requestSchema = z.object({
+  messages: z.array(chatCompletionSchema),
+});
+
 export async function POST(request: Request) {
   const data = await request.json();
-  console.log("Request object =>", data);
+  console.log("data", data);
+  const parsedData = requestSchema.safeParse(data);
+
+  // 400 Incase incoming data is invalid
+  if (!parsedData.success) {
+    return NextResponse.json(
+      {
+        error: "Invalid Data",
+      },
+      { status: 400 }
+    );
+  }
+
+  console.log("Paresed Data", parsedData);
   const completions = await grok.chat.completions.create({
     model: "llama3-8b-8192",
     temperature: 0.3,
@@ -25,6 +48,7 @@ export async function POST(request: Request) {
                 assistant: Thanks for providing the required information, you can move ahead.
                 `,
       },
+
       // here should come the user msgs, or the chat history
     ],
     response_format: { type: "json_object" },
