@@ -1,9 +1,10 @@
+import { PrismaClient } from "@prisma/client";
 import Groq from "groq-sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const grok = new Groq();
-
+const prisma = new PrismaClient();
 const chatCompletionSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string(),
@@ -62,6 +63,16 @@ export async function POST(request: Request) {
   if (content?.status) {
     console.log("hey => ", response);
     // Save this in mongoDB
+    await prisma.userInfo
+      .create({
+        data: {
+          name: content.name,
+          phoneNumber: content.phoneNumber,
+        },
+      })
+      .catch((error) => {
+        throw error;
+      });
   }
   //   console.log(response);
   return NextResponse.json(response);
