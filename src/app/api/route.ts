@@ -5,6 +5,7 @@ import { z } from "zod";
 
 const grok = new Groq();
 const prisma = new PrismaClient();
+
 const chatCompletionSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string(),
@@ -17,10 +18,12 @@ const requestSchema = z.object({
 export async function POST(request: Request) {
   const data = await request.json();
   console.log("data", data);
-  const parsedData = requestSchema.safeParse(data);
+  const data2 = { messages: data };
+  const parsedData = requestSchema.safeParse(data2);
 
   // 400 Incase incoming data is invalid
   if (!parsedData.success) {
+    console.log("parsing failed");
     return NextResponse.json(
       {
         error: "Invalid Data",
@@ -29,30 +32,38 @@ export async function POST(request: Request) {
     );
   }
 
-  console.log("Paresed Data", parsedData);
+  console.log("Parsed Data", parsedData);
   const completions = await grok.chat.completions.create({
     model: "llama3-8b-8192",
     temperature: 0.3,
     messages: [
       {
-        // system instruction
         role: "system",
-        content: `You are an simple assistant which takes user info and stores in mongodb, you dont have access to any other infomation nor you have any internet acess be to the point 
-                - Greet the user and ask for user's name,
-                - After reciving the name ask for user's phone number
-                - After return this informantion in json formate
+        content: `You are a simple assistant that collects user information and stores it in MongoDB. You don't have access to any other information or internet access. Follow these steps strictly:
 
-                Example : Hey welcome. Can you please enter your name
-                user: akshay
-                assistant: Thanks, can you enter your phone number
-                user: 9524548875
-                assistant: Thanks for providing the required information, you can move ahead.
+1. Initial greeting:
+Return: { "role": "assistant", "message": "Hello! Can you please enter your name?" }
 
-                Then return the final output {name:"akshay", phoneNumber:9524548875, status: true}
-                `,
+2. After receiving name:
+Return: { "role": "assistant", "message": "Thanks! Can you please enter your phone number?" }
+
+3. After receiving phone number:
+Return final output: { "name": "user_name", "phoneNumber": phone_number_as_integer, "status": true }
+
+Example flow:
+Assistant: { "role": "assistant", "message": "Hello! Can you please enter your name?" }
+User: John
+Assistant: { "role": "assistant", "message": "Thanks! Can you please enter your phone number?" }
+User: 1234567890
+Assistant: { "name": "John", "phoneNumber": 1234567890, "status": true }
+
+Important:
+- Always return valid JSON
+- In intermediate steps, use the format: { "role": "assistant", "message": "your message" }
+- In final step, use the format: { "name": string, "phoneNumber": number, "status": true }
+- Phone number must be an integer in the final output
+- Do not include any additional text or formatting outside the JSON structure`,
       },
-
-      // here should come the user msgs, or the chat history
       ...parsedData.data.messages,
     ],
     response_format: { type: "json_object" },
@@ -60,6 +71,8 @@ export async function POST(request: Request) {
 
   const response = completions.choices[0].message.content;
   const content = response ? JSON.parse(response) : {};
+  console.log("content", content);
+
   if (content?.status) {
     console.log("hey => ", response);
     // Save this in mongoDB
@@ -73,7 +86,21 @@ export async function POST(request: Request) {
       .catch((error) => {
         throw error;
       });
+
+    return NextResponse.json(
+      {
+        role: "assistant",
+        content: "That is it. Thanks for providing the info",
+      },
+      { status: 200 }
+    );
   }
-  //   console.log(response);
-  return NextResponse.json(response);
+
+  return NextResponse.json(
+    {
+      role: "assistant",
+      content: content.message,
+    },
+    { status: 200 }
+  );
 }

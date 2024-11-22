@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Send } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,36 +15,55 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Message {
-  id: number;
   content: string;
   role: "user" | "assistant";
 }
 
 export default function ChatbotInterface() {
   const [messages, setMessages] = useState<Message[]>([
-    { id: 1, content: "Hello! How can I assist you today?", role: "assistant" },
+    {
+      content:
+        "Thanks for visiting the assignment Sir ! Please provide your name.",
+      role: "assistant",
+    },
   ]);
   const [input, setInput] = useState("");
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (input.trim()) {
-      const newMessage: Message = {
-        id: messages.length + 1,
+      const userMessage: Message = {
         content: input.trim(),
         role: "user",
       };
-      setMessages([...messages, newMessage]);
+
+      // First update messages with the user's message
+      const updatedMessages = [...messages, userMessage];
+      setMessages(updatedMessages);
       setInput("");
 
-      // Simulate bot response
-      setTimeout(() => {
-        const botResponse: Message = {
-          id: messages.length + 2,
-          content: "Thank you for your message. How else can I help you?",
-          role: "assistant",
-        };
-        setMessages((prevMessages) => [...prevMessages, botResponse]);
-      }, 1000);
+      try {
+        // API call with updated messages including the new user message
+        console.log("Updated msgs data going in api body", updatedMessages);
+        const response = await fetch("/api", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updatedMessages),
+        });
+
+        const data = await response.json();
+
+        console.log("incoming api data", data);
+        // Then update messages again with the assistant's response
+        setMessages([
+          ...updatedMessages,
+          { role: data.role, content: data.content },
+        ]);
+      } catch (error) {
+        console.error("Error sending message:", error);
+        // Optionally add error handling UI here
+      }
     }
   };
 
@@ -56,9 +74,9 @@ export default function ChatbotInterface() {
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">
-          {messages.map((message) => (
+          {messages.map((message, key) => (
             <div
-              key={message.id}
+              key={key}
               className={`flex ${
                 message.role === "user" ? "justify-end" : "justify-start"
               } mb-4`}
