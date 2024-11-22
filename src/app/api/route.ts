@@ -5,7 +5,7 @@ import { z } from "zod";
 const grok = new Groq();
 
 const chatCompletionSchema = z.object({
-  role: z.string(),
+  role: z.enum(["user", "assistant"]),
   content: z.string(),
 });
 
@@ -46,15 +46,23 @@ export async function POST(request: Request) {
                 assistant: Thanks, can you enter your phone number
                 user: 9524548875
                 assistant: Thanks for providing the required information, you can move ahead.
+
+                Then return the final output {name:"akshay", phoneNumber:9524548875, status: true}
                 `,
       },
 
       // here should come the user msgs, or the chat history
+      ...parsedData.data.messages,
     ],
     response_format: { type: "json_object" },
   });
 
   const response = completions.choices[0].message.content;
-  console.log(response);
+  const content = response ? JSON.parse(response) : {};
+  if (content?.status) {
+    console.log("hey => ", response);
+    // Save this in mongoDB
+  }
+  //   console.log(response);
   return NextResponse.json(response);
 }
